@@ -111,14 +111,14 @@ def shrink_material(gltf):
 
 def find_material(gltf, name):
     for material in gltf['materials']:
-        if material['name'] == name:
+        if name in material['name']:
             return material
     return None
 
 
 def find_vrm_material(gltf, name):
     for material in gltf['extensions']['VRM']['materialProperties']:
-        if material['name'] == name:
+        if name in material['name']:
             return material
     return None
 
@@ -126,7 +126,7 @@ def find_vrm_material(gltf, name):
 def primitives_by_material(gltf, material_name):
     for mesh in gltf['meshes']:
         for primitive in mesh['primitives']:
-            if primitive['material']['name'] == material_name:
+            if material_name in primitive['material']['name']:
                 yield primitive
 
 
@@ -163,6 +163,8 @@ def combine_material(gltf, resize_info, base_material_name):
     one_image = Image.new("RGBA", (max_w, max_h), (0, 0, 0, 0))
     for name, info in resize_info.items():
         material = find_vrm_material(gltf, name)
+        if not material:
+            raise Exception('material {} not found.'.format(name))
         texture = material['textureProperties']['_MainTex']
         source = texture['source']
         image = load_img(source)
@@ -234,23 +236,18 @@ def combine_material(gltf, resize_info, base_material_name):
     return gltf
 
 
-# VROIDモデルバージョン
-VROID_0_2X = '0.2.x'
-VROID_0_3X = '0.3.x'
-
-
-def get_vroid_version(gltf):
-    # バージョン判定
-    if find_material(gltf, 'F00_000_EyeExtra_01_EYE'):
-        return VROID_0_2X
+def eye_extra_name(gltf):
+    # 特殊目><のマテリアル名
+    if find_material(gltf, '_EyeExtra_'):
+        return '_EyeExtra_'
     # v0.2.15：F00_000_EyeExtra_01_EYE -> v0.3.0：F00_000_FaceEyeSP_00_EYE
-    return VROID_0_3X
+    return '_FaceEyeSP_'
 
 
 # VROID服装種別
 CLOTH_NAKED = 'BIG_BOSS'
-CLOTH_ONE_PIECE = 'ONE_PIECE'
 CLOTH_STUDENT = 'STUDENT'
+CLOTH_ONE_PIECE = 'ONE_PIECE'
 
 
 def get_cloth_type(gltf):
@@ -261,11 +258,11 @@ def get_cloth_type(gltf):
             return CLOTH_STUDENT
         if name.startswith('F00_002'):
             return CLOTH_ONE_PIECE
+    return CLOTH_NAKED
 
 
 def reduce_vroid(gltf):
     # VRoidモデルの軽量化
-    vroid_version = get_vroid_version(gltf)
 
     # 髪プリミティブ統合
     print 'combining hair primitives...'
@@ -283,40 +280,38 @@ def reduce_vroid(gltf):
     if cloth_type == CLOTH_STUDENT:
         # 制服上下、リボン、靴
         gltf = combine_material(gltf, {
-            'F00_001_Tops_01_CLOTH': {'pos': (0, 0), 'size': (2048, 1536)},
-            'F00_001_Bottoms_01_CLOTH': {'pos': (0, 1536), 'size': (512, 512)},
-            'F00_001_Accessory_01_CLOTH': {'pos': (512, 1536), 'size': (512, 512)},
-            'F00_001_Shoes_01_CLOTH': {'pos': (1024, 1536), 'size': (512, 512)}
-        }, 'F00_001_Tops_01_CLOTH')
+            '_Tops_': {'pos': (0, 0), 'size': (2048, 1536)},
+            '_Bottoms_': {'pos': (0, 1536), 'size': (512, 512)},
+            '_Accessory_': {'pos': (512, 1536), 'size': (512, 512)},
+            '_Shoes_': {'pos': (1024, 1536), 'size': (512, 512)}
+        }, '_Tops_')
 
     # ボディ、顔、白目、口
-    body_skin_name = 'F00_002_Body_00_SKIN' if cloth_type == CLOTH_ONE_PIECE else 'F00_000_Body_00_SKIN'
     gltf = combine_material(gltf, {
-        body_skin_name: {'pos': (0, 0), 'size': (1536, 2048)},
-        'F00_000_Face_00_SKIN': {'pos': (1536, 0), 'size': (512, 512)},
-        'F00_000_EyeWhite_00_EYE': {'pos': (1536, 512), 'size': (512, 512)},
-        'F00_000_FaceMouth_00_FACE': {'pos': (1536, 1024), 'size': (512, 512)},
-    }, 'F00_000_Face_00_SKIN')
+        '_Body_': {'pos': (0, 0), 'size': (1536, 2048)},
+        '_Face_': {'pos': (1536, 0), 'size': (512, 512)},
+        '_EyeWhite_': {'pos': (1536, 512), 'size': (512, 512)},
+        '_FaceMouth_': {'pos': (1536, 1024), 'size': (512, 512)},
+    }, '_Face_')
 
     # アイライン、まつ毛
-    extra_eye_name = 'F00_000_EyeExtra_01_EYE' if vroid_version == VROID_0_2X else 'F00_000_FaceEyeSP_00_EYE'
     gltf = combine_material(gltf, {
-        extra_eye_name: {'pos': (0, 0), 'size': (1024, 512)},
-        'F00_000_FaceEyeline_00_FACE': {'pos': (0, 512), 'size': (1024, 512)},
-        'F00_000_FaceEyelash_00_FACE': {'pos': (0, 1024), 'size': (1024, 512)}
-    }, 'F00_000_FaceEyeline_00_FACE')
+        eye_extra_name(gltf): {'pos': (0, 0), 'size': (1024, 512)},
+        '_FaceEyeline_': {'pos': (0, 512), 'size': (1024, 512)},
+        '_FaceEyelash_': {'pos': (0, 1024), 'size': (1024, 512)}
+    }, '_FaceEyeline_')
 
     # 瞳孔、ハイライト
     gltf = combine_material(gltf, {
-        'F00_000_EyeIris_00_EYE': {'pos': (0, 0), 'size': (1024, 512)},
-        'F00_000_EyeHighlight_00_EYE': {'pos': (0, 512), 'size': (1024, 512)}
-    }, 'F00_000_EyeIris_00_EYE')
+        '_EyeIris_': {'pos': (0, 0), 'size': (1024, 512)},
+        '_EyeHighlight_': {'pos': (0, 512), 'size': (1024, 512)}
+    }, '_EyeIris_')
 
     # 髪の毛、頭の下毛
     gltf = combine_material(gltf, {
-        'F00_000_HairBack_00_HAIR': {'pos': (0, 0), 'size': (1024, 1024)},
-        'F00_000_Hair_00_HAIR': {'pos': (1024, 0), 'size': (512, 1024)}
-    }, 'F00_000_Hair_00_HAIR')
+        '_HairBack_': {'pos': (0, 0), 'size': (1024, 1024)},
+        '_Hair_': {'pos': (1024, 0), 'size': (512, 1024)}
+    }, '_Hair_')
 
     # 不要要素削除
     print 'cleaning...'
