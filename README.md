@@ -1,5 +1,5 @@
 # VReducer
-VRoidStudioでエクスポートされたモデルをClusterアバター用に軽量化する非公式スクリプトです。
+[VRoidStudio](https://vroid.pixiv.net/)でエクスポートされたモデルをClusterアバター用に軽量化する非公式スクリプトです。
 
 
 ## 動作環境
