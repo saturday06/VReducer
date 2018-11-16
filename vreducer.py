@@ -6,8 +6,8 @@ from os import mkdir
 from os.path import dirname, join, exists, basename
 
 from vrm.debug import stat_gltf
-from vrm.vrm import load
 from vrm.reducer import reduce_vroid
+from vrm.vrm import load
 
 
 def main(argv):
@@ -32,12 +32,13 @@ def main(argv):
 
     save_dir = join(dirname(path), 'result')
     if not exists(save_dir):
-        mkdir(save_dir) # 出力先作成
+        mkdir(save_dir)  # 出力先作成
 
     save_path = join(save_dir, basename(path))
     # 上書き確認
-    if not opt.force and exists(save_path) and raw_input('Already exists file. Overwrite?(y/N):').lower not in ['y', 'yes']:
-        return
+    if not opt.force and exists(save_path):
+        if raw_input('Already exists file. Overwrite?(y/N):').lower not in ['y', 'yes']:
+            return
 
     # vrm保存
     vrm.save(save_path)
