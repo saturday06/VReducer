@@ -1,2 +1,2 @@
 # VReducer
-VRoidモデルをClusterアバター用に軽量化する
+VRoidモデルをClusterアバター用に軽量化するスクリプト
