@@ -290,7 +290,7 @@ def reduce_vroid(gltf):
         }, 'F00_001_Tops_01_CLOTH')
 
     # ボディ、顔、白目、口
-    body_skin_name = 'F00_000_Body_00_SKIN' if cloth_type == CLOTH_STUDENT else 'F00_002_Body_00_SKIN'
+    body_skin_name = 'F00_002_Body_00_SKIN' if cloth_type == CLOTH_ONE_PIECE else 'F00_000_Body_00_SKIN'
     gltf = combine_material(gltf, {
         body_skin_name: {'pos': (0, 0), 'size': (1536, 2048)},
         'F00_000_Face_00_SKIN': {'pos': (1536, 0), 'size': (512, 512)},
