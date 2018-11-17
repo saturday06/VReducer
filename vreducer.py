@@ -37,11 +37,12 @@ def main(argv):
     save_path = join(save_dir, basename(path))
     # 上書き確認
     if not opt.force and exists(save_path):
-        if raw_input('Already exists file. Overwrite?(y/N):').lower not in ['y', 'yes']:
+        if raw_input('Already exists file. Overwrite?(y/N):').lower() not in ['y', 'yes']:
             return
 
     # vrm保存
     vrm.save(save_path)
+    print 'saved.'
 
 
 if __name__ == '__main__':
