@@ -13,9 +13,9 @@ VRoidモデルの削減処理
 """
 
 
-def find_mesh(gltf, name):
+def find_meshs(gltf, name):
     meshes = gltf['meshes']
-    return [mesh for mesh in meshes if mesh['name'] == name][0]
+    return [mesh for mesh in meshes if name in mesh['name']]
 
 
 def isolated_primitives(gltf, name):
@@ -25,12 +25,13 @@ def isolated_primitives(gltf, name):
     """
     gltf = deepcopy(gltf)
     # ヘアメッシュ
-    hair_mesh = find_mesh(gltf, name)
+    hair_meshs = find_meshs(gltf, name)
+    hair_mesh = hair_meshs[0]
 
     # ヘアメッシュ内のプリミティブインデックスのアクセッサーを列挙
     hair_primitive_indices = [primitive['indices'] for primitive in hair_mesh['primitives']]
 
-    # バッファービューを列挙
+    # バッファビューを列挙
     buffer_views = map(lambda indices: indices['bufferView'], hair_primitive_indices)
     head_view = buffer_views[0]
     # 統合したバッファービューを作成
@@ -44,8 +45,8 @@ def isolated_primitives(gltf, name):
         'target': head_view['target'],
         'data': data
     }
-    # NOTE; VRoidでは出力されない
     if 'byteStride' in head_view:
+        # NOTE; VRoidでは出力されない
         new_view['byteStride'] = head_view['byteStride']
     gltf['bufferViews'].append(new_view)
 
@@ -102,8 +103,8 @@ def shrink_material(gltf):
         unused = ['_BumpMap', '_SphereAdd']
         material['textureProperties'] = {k: v for k, v in material['textureProperties'].items() if k not in unused}
 
-        # 法線マップ、リムライティング無効化
-        remove_options = ['_NORMALMAP', 'MTOON_OUTLINE_COLOR_FIXED']
+        # 法線マップ無効化
+        remove_options = ['_NORMALMAP']
         material['keywordMap'] = {k: v for k, v in material['keywordMap'].items() if k not in remove_options}
 
     return gltf
@@ -266,7 +267,7 @@ def reduce_vroid(gltf):
 
     # 髪プリミティブ統合
     print 'combine hair primitives...'
-    gltf = isolated_primitives(gltf, 'Hair001.baked')
+    gltf = isolated_primitives(gltf, 'Hair')
 
     # バンプマップ、スフィアマップを削除
     print 'shrink materials...'
