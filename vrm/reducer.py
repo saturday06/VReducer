@@ -265,15 +265,15 @@ def reduce_vroid(gltf):
     # VRoidモデルの軽量化
 
     # 髪プリミティブ統合
-    print 'combining hair primitives...'
+    print 'combine hair primitives...'
     gltf = isolated_primitives(gltf, 'Hair001.baked')
 
     # バンプマップ、スフィアマップを削除
-    print 'shrinking materials...'
+    print 'shrink materials...'
     gltf = shrink_material(gltf)
 
     # マテリアルを結合
-    print 'combining materials...'
+    print 'combine materials...'
 
     cloth_type = get_cloth_type(gltf)
 
@@ -314,5 +314,5 @@ def reduce_vroid(gltf):
     }, '_Hair_')
 
     # 不要要素削除
-    print 'cleaning...'
+    print 'clean...'
     return clean(gltf)
