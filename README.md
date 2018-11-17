@@ -26,9 +26,13 @@ $ pip install Pillow
 
 ## 使い方
 ```bash
-$ python vreducer.py [VRM_FILE_PATH]
+$ python vreducer.py [VRM_FILE_PATH] [-f|--force]
 ```
+
+
 VRM_FILE_PATH：VRMファイルパス
+
+-f, --force：このオプションが指定された場合ファイル保存時、確認なしに上書きする
 
 変換後のファイルは以下のフォルダ以下に出力されます。
 ```
