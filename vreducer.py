@@ -11,9 +11,11 @@ from vrm.vrm import load
 
 
 def main(argv):
+    from vrm.version import app_name
     parser = ArgumentParser()
     parser.add_argument('path', help=u'VRM file exported by VRoid Studio.')
     parser.add_argument('-f', '--force', action='store_true', help=u'Overwrite file if already exists same file.')
+    parser.add_argument('-V', '--version', action='version', version=app_name())
     opt = parser.parse_args(argv)
 
     path = opt.path
