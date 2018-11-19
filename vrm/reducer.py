@@ -3,6 +3,7 @@
 import struct
 from copy import deepcopy
 from io import BytesIO
+from itertools import groupby
 
 from PIL import Image
 
@@ -18,23 +19,32 @@ def find_meshs(gltf, name):
     return [mesh for mesh in meshes if name in mesh['name']]
 
 
-def isolated_primitives(gltf, name):
+def groupby_material(primitives):
+    # マテリアルごとにプリミティブをまとめる
+    grouped = {}
+    for primitive in primitives:
+        name = primitive['name']
+        if name not in grouped:
+            grouped[name] = []
+        grouped[name].append(primitive)
+    return grouped
+
+
+def combine_primitives(primitives):
     """
-    髪プリミティブ統合
+    プリミティブリストを1つのプリミティブに結合する
     ※連続したプリミティブであることを前提
+    :param primitives:
+    :return: 結合済みプリミティブ、追加アクセッサー、追加bufferView
     """
-    gltf = deepcopy(gltf)
-    # ヘアメッシュ
-    hair_meshs = find_meshs(gltf, name)
-    hair_mesh = hair_meshs[0]
-
+    # 1つのプリミティブに統合する
     # ヘアメッシュ内のプリミティブインデックスのアクセッサーを列挙
-    hair_primitive_indices = [primitive['indices'] for primitive in hair_mesh['primitives']]
+    primitive_indices = [primitive['indices'] for primitive in primitives]
 
-    # バッファビューを列挙
-    buffer_views = map(lambda indices: indices['bufferView'], hair_primitive_indices)
+    # プリミティブのbufferView列挙
+    buffer_views = map(lambda indices: indices['bufferView'], primitive_indices)
     head_view = buffer_views[0]
-    # 統合したバッファービューを作成
+    # 統合したbufferViewを作成
     buffer = head_view['buffer']
     offset = head_view['byteOffset']
     data = b''.join(map(lambda view: view['data'], buffer_views))  # バイトデータ
@@ -46,13 +56,11 @@ def isolated_primitives(gltf, name):
         'data': data
     }
     if 'byteStride' in head_view:
-        # NOTE; VRoidでは出力されない
-        new_view['byteStride'] = head_view['byteStride']
-    gltf['bufferViews'].append(new_view)
+        new_view['byteStride'] = head_view['byteStride']  # NOTE; VRoidでは出力されない
 
     # アクセッサーを統合
-    accessor_count = sum(map(lambda x: x['count'], hair_primitive_indices))  # アクセッサー総要素数
-    head_indices = hair_primitive_indices[0]
+    accessor_count = sum(map(lambda x: x['count'], primitive_indices))  # アクセッサー総要素数
+    head_indices = primitive_indices[0]
     new_accessor = {
         'count': accessor_count,
         'byteOffset': head_indices['byteOffset'],
@@ -61,18 +69,43 @@ def isolated_primitives(gltf, name):
         'type': head_indices['type'],
         'normalized': head_indices['normalized']
     }
-    gltf['accessors'].append(new_accessor)
 
     # 髪メッシュのプリミティブを統合
-    hair_primitives = hair_mesh['primitives']
-    hair_primitive_head = hair_primitives[0]
-    new_hair_primitive = {
-        'mode': hair_primitive_head['mode'],
+    head_primitive = primitives[0]
+    new_primitive = {
+        'mode': head_primitive['mode'],
         'indices': new_accessor,
-        'attributes': hair_primitive_head['attributes'],
-        'material': hair_primitive_head['material']
+        'attributes': head_primitive['attributes'],
+        'material': head_primitive['material']
     }
-    hair_mesh['primitives'] = [new_hair_primitive]
+
+    return new_primitive, new_accessor, new_view
+
+
+def combine_all_primitives(gltf, name):
+    """
+    指定したマテリアル名を持つプリミティブ結合
+    :param gltf: gltfオブジェクト
+    :param name: マテリアル名
+    :return: プリミティブ結合後のgltfオブジェクト
+    """
+    gltf = deepcopy(gltf)
+    # ヘアメッシュ
+    hair_meshs = find_meshs(gltf, name)
+    hair_mesh = hair_meshs[0]
+
+    # マテリアルごとにプリミティブをまとめる
+    grouped_primitives = groupby(hair_mesh['primitives'], key=lambda p: p['material'])
+
+    new_primitives = []
+    for material, primitives in grouped_primitives:
+        # 1つのプリミティブに統合する
+        primitive, accessor, buffer_view = combine_primitives(list(primitives))
+        new_primitives.append(primitive)
+        gltf['accessors'].append(accessor)
+        gltf['bufferViews'].append(buffer_view)
+
+    hair_mesh['primitives'] = new_primitives
 
     return gltf
 
@@ -155,6 +188,14 @@ def max_size(resize_info):
     return max_w, max_h
 
 
+def list_primitives(gltf, names):
+    # 指定したマテリアルを持つプリミティブのマテリアル名、プリミティブ、bufferViewインデックスを列挙
+    for name in names:
+        for primitive in primitives_by_material(gltf, name):
+            view_index = gltf['bufferViews'].index(primitive['attributes']['TEXCOORD_0']['bufferView'])
+            yield (name, primitive, view_index)
+
+
 def combine_material(gltf, resize_info, base_material_name):
     # 制服、スカート、リボン、靴マテリアル結合
     gltf = deepcopy(gltf)
@@ -185,13 +226,6 @@ def combine_material(gltf, resize_info, base_material_name):
     # マテリアル統一(テクスチャを更新しているので適用するだけで良い)
     material = find_material(gltf, base_material_name)
 
-    # マテリアル名、プリミティブ、bufferViewインデックス
-    def list_primitives():
-        for name in resize_info:
-            for primitive in primitives_by_material(gltf, name):
-                view_index = gltf['bufferViews'].index(primitive['attributes']['TEXCOORD_0']['bufferView'])
-                yield (name, primitive, view_index)
-
     def uv_scale(name):
         # スケール率計算
         paste_info = resize_info[name]
@@ -203,11 +237,11 @@ def combine_material(gltf, resize_info, base_material_name):
 
     # オリジナルバッファー
     original_view_datas = {}
-    for _, _, view_index in list_primitives():
+    for _, _, view_index in list_primitives(gltf, resize_info.keys()):
         if view_index not in original_view_datas:
             original_view_datas[view_index] = deepcopy(gltf['bufferViews'][view_index]['data'])
 
-    for name, primitive, view_index in list_primitives():
+    for name, primitive, view_index in list_primitives(gltf, resize_info.keys()):
         # マテリアル更新
         primitive['material'] = material
         # 頂点インデックス一覧
@@ -267,7 +301,7 @@ def reduce_vroid(gltf):
 
     # 髪プリミティブ統合
     print 'combine hair primitives...'
-    gltf = isolated_primitives(gltf, 'Hair')
+    gltf = combine_all_primitives(gltf, 'Hair')
 
     # バンプマップ、スフィアマップを削除
     print 'shrink materials...'
@@ -309,9 +343,10 @@ def reduce_vroid(gltf):
     }, '_EyeIris_')
 
     # 髪の毛、頭の下毛
+    hair_material = find_material(gltf, '_Hair_')
     gltf = combine_material(gltf, {
         '_HairBack_': {'pos': (0, 0), 'size': (1024, 1024)},
-        '_Hair_': {'pos': (1024, 0), 'size': (512, 1024)}
+        hair_material['name']: {'pos': (1024, 0), 'size': (512, 1024)}
     }, '_Hair_')
 
     # 不要要素削除
