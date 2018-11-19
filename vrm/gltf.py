@@ -5,6 +5,8 @@ import json
 import re
 from copy import deepcopy
 
+from version import app_name
+
 
 def load(path):
     with codecs.open(path, 'r', encoding='utf-8') as fin:
@@ -209,5 +211,8 @@ def indexing(gltf):
     replace_reg = re.compile(r'(.+)-\d+')
     for n, (material, vrm_material) in enumerate(zip(materials, vrm_materials)):
         material['name'] = vrm_material['name'] = replace_reg.sub(r'\1', material['name'])
+
+    # Exporter名を変更
+    vrm['exporterVersion'] = app_name()
 
     return gltf, chunks
