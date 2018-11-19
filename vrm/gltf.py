@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import codecs
 import json
+import re
 from copy import deepcopy
 
 
@@ -101,6 +102,11 @@ def instancing(gltf, chunks=None):
         for name in properties:
             properties[name] = textures[properties[name]]
 
+    # マテリアル結合時に髪のマテリアルを区別できるように末尾に番号をつける
+    # 一時的な変更、ファイル保存には元の名前に戻す
+    for n, (material, vrm_material) in enumerate(zip(materials, vrm_materials)):
+        material['name'] = vrm_material['name'] = '{}-{:02d}'.format(material['name'], n)
+
     if not chunks:
         # TODO: buffer URI
         return gltf
@@ -198,5 +204,10 @@ def indexing(gltf):
     for texture in textures:
         texture['source'] = images.index(texture['source'])
         texture['sampler'] = samplers.index(texture['sampler'])
+
+    # マテリアル名を戻す
+    replace_reg = re.compile(r'(.+)-\d+')
+    for n, (material, vrm_material) in enumerate(zip(materials, vrm_materials)):
+        material['name'] = vrm_material['name'] = replace_reg.sub(r'\1', material['name'])
 
     return gltf, chunks
