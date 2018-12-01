@@ -368,7 +368,6 @@ def get_cloth_type(gltf):
     :param gltf: glTFオブジェクト
     :return: 服装識別子
     """
-    # 服装判定
     names = map(lambda x: x['name'], gltf['materials'])
     for name in names:
         if name.startswith('F00_001'):
@@ -411,8 +410,7 @@ def reduce_vroid(gltf):
     gltf = combine_material(gltf, {
         '_Body_': {'pos': (0, 0), 'size': (1536, 2048)},
         '_Face_': {'pos': (1536, 0), 'size': (512, 512)},
-        '_EyeWhite_': {'pos': (1536, 512), 'size': (512, 512)},
-        '_FaceMouth_': {'pos': (1536, 1024), 'size': (512, 512)},
+        '_FaceMouth_': {'pos': (1536, 1024), 'size': (512, 512)}
     }, '_Face_')
 
     # アイライン、まつ毛
@@ -425,7 +423,8 @@ def reduce_vroid(gltf):
     # 瞳孔、ハイライト
     gltf = combine_material(gltf, {
         '_EyeIris_': {'pos': (0, 0), 'size': (1024, 512)},
-        '_EyeHighlight_': {'pos': (0, 512), 'size': (1024, 512)}
+        '_EyeHighlight_': {'pos': (0, 512), 'size': (1024, 512)},
+        '_EyeWhite_': {'pos': (0, 1024), 'size': (1024, 512)}
     }, '_EyeIris_')
 
     # 髪の毛、頭の下毛
