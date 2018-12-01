@@ -40,11 +40,11 @@ def combine_primitives(primitives):
     buffer_views = map(lambda indices: indices['bufferView'], primitive_indices)
     head_view = buffer_views[0]
     # 統合したbufferViewを作成
-    buffer = head_view['buffer']
+    buf = head_view['buffer']
     offset = head_view['byteOffset']
     data = b''.join(map(lambda view: view['data'], buffer_views))  # バイトデータ
     new_view = {
-        'buffer': buffer,
+        'buffer': buf,
         'byteOffset': offset,
         'byteLength': len(data),
         'target': head_view['target'],
