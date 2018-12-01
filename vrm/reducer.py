@@ -293,6 +293,7 @@ def combine_material(gltf, resize_info, base_material_name):
     gltf['bufferViews'].append(new_view)
 
     # マテリアル統一(テクスチャを更新しているので適用するだけで良い)
+    # VRM上の拡張マテリアルはclean処理で削除される
     new_material = find_material(gltf, base_material_name)
 
     def uv_scale(name):
@@ -339,19 +340,6 @@ def combine_material(gltf, resize_info, base_material_name):
         uv_view['data'] = uv_data  # 更新
 
     return gltf
-
-
-def eye_extra_name(gltf):
-    """
-    特殊目><の検索用マテリアル名を取得する
-    バージョン判定に利用
-    :param gltf: glTFオブジェクト
-    :return: 検索用マテリアル名(名前の一部)
-    """
-    if find_material(gltf, '_EyeExtra_'):
-        return '_EyeExtra_'
-    # v0.2.15：F00_000_EyeExtra_01_EYE -> v0.3.0：F00_000_FaceEyeSP_00_EYE
-    return '_FaceEyeSP_'
 
 
 """
@@ -415,7 +403,7 @@ def reduce_vroid(gltf):
 
     # アイライン、まつ毛
     gltf = combine_material(gltf, {
-        eye_extra_name(gltf): {'pos': (0, 0), 'size': (1024, 512)},
+        '_FaceEyeSP_': {'pos': (0, 0), 'size': (1024, 512)},
         '_FaceEyeline_': {'pos': (0, 512), 'size': (1024, 512)},
         '_FaceEyelash_': {'pos': (0, 1024), 'size': (1024, 512)}
     }, '_FaceEyeline_')
