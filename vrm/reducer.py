@@ -425,7 +425,7 @@ def reduce_vroid(gltf):
         '_EyeIris_': {'pos': (0, 0), 'size': (1024, 512)},
         '_EyeHighlight_': {'pos': (0, 512), 'size': (1024, 512)},
         '_EyeWhite_': {'pos': (0, 1024), 'size': (1024, 512)}
-    }, '_EyeIris_')
+    }, '_EyeHighlight_')
 
     # 髪の毛、頭の下毛
     hair_material = find_material(gltf, '_Hair_')
