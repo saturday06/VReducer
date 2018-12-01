@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from os import mkdir
 from os.path import dirname, join, exists, basename
 
-from vrm.debug import stat_gltf
+from vrm.debug import print_stat
 from vrm.reducer import reduce_vroid
 from vrm.vrm import load
 
@@ -24,13 +24,13 @@ def main(argv):
     # vrm読み込み
     vrm = load(path)
 
-    stat_gltf(vrm.gltf)
+    print_stat(vrm.gltf)
 
     print '-' * 30
     vrm.gltf = reduce_vroid(vrm.gltf)
 
     print '-' * 30
-    stat_gltf(vrm.gltf)
+    print_stat(vrm.gltf)
 
     save_dir = join(dirname(path), 'result')
     if not exists(save_dir):
