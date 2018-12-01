@@ -1,24 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import codecs
-import json
 import re
 from copy import deepcopy
 
 from version import app_name
 
 
-def load(path):
-    with codecs.open(path, 'r', encoding='utf-8') as fin:
-        return instancing(json.load(fin))
-
-
-def save(path, gltf):
-    with codecs.open(path, 'w', encoding='utf-8') as fout:
-        return json.dump(indexing(gltf)[0], fout, indent=2)
-
-
-# マテリアル名についた余分な名前を削除する
 def remove_instance(name):
     if '(Instance)' not in name:
         return name
@@ -26,16 +13,20 @@ def remove_instance(name):
 
 
 def remove_clone(name):
-    return name.replace('(Clone)', '')
+    return name.replace('(Clone)', '')  # (Clone)表記を削除
 
 
 def normalize_material_name(name):
+    # マテリアル名についている余分な名前を削除する
     return remove_clone(remove_instance(name))
 
 
 def instancing(gltf, chunks=None):
     """
-    インデックスを参照に変更
+    インデックス番号による参照をインスタンスデータへの直接参照に変換する
+    :param gltf: glTFオブジェクト
+    :param chunks: チャンクデータリスト
+    :return: 変換後のglTFオブジェクト
     """
     gltf = deepcopy(gltf)
 
@@ -125,7 +116,9 @@ def instancing(gltf, chunks=None):
 
 def indexing(gltf):
     """
-    参照をインデックスに戻す
+    参照をインデックス番号に戻す
+    :param gltf: glTFオブジェクト
+    :return: 変換後のglTFオブジェクト
     """
     gltf = deepcopy(gltf)
 

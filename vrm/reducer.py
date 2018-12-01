@@ -8,33 +8,28 @@ from itertools import groupby
 from PIL import Image
 
 from cleaner import clean
+from util import find
 
 """
 VRoidモデルの削減処理
 """
 
 
-def find_meshs(gltf, name):
-    meshes = gltf['meshes']
+def find_meshes(meshes, name):
+    """
+    指定した名前と部分一致するメッシュを列挙する
+    :param meshes: メッシュリスト
+    :param name: メッシュ名
+    :return: 部分一致したメッシュリスト
+    """
     return [mesh for mesh in meshes if name in mesh['name']]
-
-
-def groupby_material(primitives):
-    # マテリアルごとにプリミティブをまとめる
-    grouped = {}
-    for primitive in primitives:
-        name = primitive['name']
-        if name not in grouped:
-            grouped[name] = []
-        grouped[name].append(primitive)
-    return grouped
 
 
 def combine_primitives(primitives):
     """
     プリミティブリストを1つのプリミティブに結合する
     ※連続したプリミティブであることを前提
-    :param primitives:
+    :param primitives: プリミティブリスト
     :return: 結合済みプリミティブ、追加アクセッサー、追加bufferView
     """
     # 1つのプリミティブに統合する
@@ -90,8 +85,9 @@ def combine_all_primitives(gltf, name):
     :return: プリミティブ結合後のgltfオブジェクト
     """
     gltf = deepcopy(gltf)
+
     # ヘアメッシュ
-    hair_meshs = find_meshs(gltf, name)
+    hair_meshs = find_meshes(gltf['meshes'], name)
     hair_mesh = hair_meshs[0]
 
     # マテリアルごとにプリミティブをまとめる
@@ -113,24 +109,40 @@ def combine_all_primitives(gltf, name):
 def remove_primitives(gltf, material_names):
     """
     指定したマテリアル名のプリミティブを削除する
+    :param gltf: glTFオブジェクト
+    :param material_names: マテリアル名リスト
+    :return: プリミティブ削除後のglTFオブジェクト
     """
     gltf = deepcopy(gltf)
+
+    def contain_name(name):
+        for material_name in material_names:
+            if name in material_name:
+                return True  # マテリアル名と部分一致
+        return False
+
     # プリミティブ削除
     for mesh in gltf['meshes']:
-        mesh['primitives'] = filter(lambda p: p['material']['name'] not in material_names, mesh['primitives'])
+        mesh['primitives'] = filter(lambda p: contain_name(p['material']['name']), mesh['primitives'])
     return gltf
 
 
-def shrink_material(gltf):
-    # VRMからバンプマップ、スフィアマップを削除
-    gltf = deepcopy(gltf)
-
-    for material in gltf['materials']:
-        for tex_name in ['emissiveTexture', 'normalTexture', 'emissiveTexture']:
+def shrink_gltf_materials(materials):
+    """
+    バンプマップ、スフィアマップを削除する
+    :param materials: glTFマテリアルリスト
+    """
+    for material in materials:
+        for tex_name in ['emissiveTexture', 'normalTexture']:
             if tex_name in material:
                 del material[tex_name]
 
-    vrm_materials = gltf['extensions']['VRM']['materialProperties']
+
+def shrink_vrm_materials(vrm_materials):
+    """
+    バンプマップ、スフィアマップを削除する
+    :param vrm_materials: VRMマテリアルリスト
+    """
     for material in vrm_materials:
         # バンプマップ、スフィアマップ削除
         unused = ['_BumpMap', '_SphereAdd']
@@ -140,45 +152,73 @@ def shrink_material(gltf):
         remove_options = ['_NORMALMAP']
         material['keywordMap'] = {k: v for k, v in material['keywordMap'].items() if k not in remove_options}
 
+
+def shrink_materials(gltf):
+    """
+    バンプマップ、スフィアマップを削除する
+    :param gltf: glTFオブジェクト
+    """
+    gltf = deepcopy(gltf)
+    shrink_gltf_materials(gltf['materials'])
+    shrink_vrm_materials(gltf['extensions']['VRM']['materialProperties'])
     return gltf
 
 
+def find_material_from_name(materials, name):
+    """
+    :param gltf: glTFオブジェクト
+    :param name: 検索マテリアル名
+    :return: マテリアル名に部分一致するマテリアルを返す。見つからなければNone
+    """
+    return find(lambda m: name in m['name'], materials)
+
+
 def find_material(gltf, name):
-    for material in gltf['materials']:
-        if name in material['name']:
-            return material
-    return None
+    """
+    :param gltf: glTFオブジェクト
+    :param name: 検索マテリアル名
+    :return: マテリアル名に部分一致するglTFマテリアルを返す。見つからなければNone
+    """
+    return find_material_from_name(gltf['materials'], name)
 
 
 def find_vrm_material(gltf, name):
-    for material in gltf['extensions']['VRM']['materialProperties']:
-        if name in material['name']:
-            return material
-    return None
-
-
-def primitives_by_material(gltf, material_name):
-    for mesh in gltf['meshes']:
-        for primitive in mesh['primitives']:
-            if material_name in primitive['material']['name']:
-                yield primitive
+    """
+    :param gltf: glTFオブジェクト
+    :param name: 検索マテリアル名
+    :return: マテリアル名に部分一致するVRMマテリアルを返す。見つからなければNone
+    """
+    return find_material_from_name(gltf['extensions']['VRM']['materialProperties'], name)
 
 
 def load_img(image):
-    # 画像データをPILで読み込む
+    """
+    画像ファイル(バイトデータ)をPILで読み込む
+    :param image: 画像ファイルのバイトデータ
+    :return: PIL.Imageオブジェクト
+    """
     buffer_view = image['bufferView']
     return Image.open(BytesIO(buffer_view['data']))
 
 
 def image2bytes(img, fmt):
-    # PILの画像データを指定フォーマットの画像ファイルデータに変換する
+    """
+    PIL.Imageオブジェクトを指定フォーマットの画像ファイル(バイトデータ)に変換する
+    :param img: PIL.Imageオブジェクト
+    :param fmt: 画像ファイルフォーマット
+    :return: 画像ファイル(バイトデータ)
+    """
     with BytesIO() as bio:
         img.save(bio, format=fmt)
         return bio.getvalue()
 
 
 def max_size(resize_info):
-    # リサイズ情報から最大幅を計算する
+    """
+    リサイズ情報から結合先として必要な画像サイズを計算して返す
+    :param resize_info: リサイズ情報
+    :return: width, height
+    """
     max_w, max_h = 0, 0
     for name, info in resize_info.items():
         pos = info['pos']
@@ -188,32 +228,61 @@ def max_size(resize_info):
     return max_w, max_h
 
 
+def primitives_has_material(gltf, material_name):
+    """
+    指定したマテリアル名に部分一致するプリミティブを列挙する
+    :param gltf: glTFオブジェクト
+    :param material_name: マテリアル名
+    :return: プリミティブリスト(generator)
+    """
+    for mesh in gltf['meshes']:
+        for primitive in mesh['primitives']:
+            if material_name in primitive['material']['name']:
+                yield primitive
+
+
 def list_primitives(gltf, names):
-    # 指定したマテリアルを持つプリミティブのマテリアル名、プリミティブ、bufferViewインデックスを列挙
+    """
+    指定したマテリアル名を持つプリミティブの情報を列挙する
+    マテリアル名、プリミティブ、bufferViewインデックスを列挙
+    :param gltf: glTFオブジェクト
+    :param names: マテリアル名リスト
+    :return: (マテリアル名、プリミティブ、bufferViewインデックス)リスト(generator)
+    """
     for name in names:
-        for primitive in primitives_by_material(gltf, name):
+        for primitive in primitives_has_material(gltf, name):
             view_index = gltf['bufferViews'].index(primitive['attributes']['TEXCOORD_0']['bufferView'])
             yield (name, primitive, view_index)
 
 
 def combine_material(gltf, resize_info, base_material_name):
-    # 制服、スカート、リボン、靴マテリアル結合
+    """
+    再配置情報で指定されたマテリアルを結合する
+    テクスチャも結合する
+    :param gltf: glTFオブジェクト
+    :param resize_info: マテリアル名とテクスチャ配置情報
+    :param base_material_name: 統合先にするマテリアル
+    :return: マテリアル結合したglTFオブジェクト
+    """
     gltf = deepcopy(gltf)
+
+    # 制服、スカート、リボン、靴マテリアル結合
     max_w, max_h = max_size(resize_info)
 
-    # 配置
+    vrm_materials = {name: find_vrm_material(gltf, name) for name in resize_info}
+    main_tex_sources = {name: material['textureProperties']['_MainTex']['source'] for name, material in
+                        vrm_materials.items() if material}
+
+    # 再配置情報を元に1つの画像にまとめる
     one_image = Image.new("RGBA", (max_w, max_h), (0, 0, 0, 0))
-    for name, info in resize_info.items():
-        material = find_vrm_material(gltf, name)
-        if not material:
-            raise Exception('material {} not found.'.format(name))
-        texture = material['textureProperties']['_MainTex']
-        source = texture['source']
-        image = load_img(source)
+    for name, tex_source in main_tex_sources.items():
+        image = load_img(tex_source)
+        info = resize_info[name]
         one_image.paste(image.resize(info['size'], Image.LANCZOS), info['pos'])
     width, height = map(float, one_image.size)
     new_view = {'data': image2bytes(one_image, 'png')}
-    new_image = {'mimeType': 'image/png', 'bufferView': new_view}
+    image_names = [source['name'] for source in main_tex_sources.values() if source['name']]
+    new_image = {'name': image_names, 'mimeType': 'image/png', 'bufferView': new_view}
     # one_image.show()
 
     # テクスチャ更新
@@ -224,7 +293,7 @@ def combine_material(gltf, resize_info, base_material_name):
     gltf['bufferViews'].append(new_view)
 
     # マテリアル統一(テクスチャを更新しているので適用するだけで良い)
-    material = find_material(gltf, base_material_name)
+    new_material = find_material(gltf, base_material_name)
 
     def uv_scale(name):
         # スケール率計算
@@ -243,7 +312,7 @@ def combine_material(gltf, resize_info, base_material_name):
 
     for name, primitive, view_index in list_primitives(gltf, resize_info.keys()):
         # マテリアル更新
-        primitive['material'] = material
+        primitive['material'] = new_material
         # 頂点インデックス一覧
         accessor = primitive['indices']
         indices_buffer = accessor['bufferView']['data']
@@ -268,24 +337,37 @@ def combine_material(gltf, resize_info, base_material_name):
             u, v = (x + u * w, y + v * h)
             uv_data = uv_data[:uv_offset] + struct.pack('2f', u, v) + uv_data[uv_offset + 8:]
         uv_view['data'] = uv_data  # 更新
+
     return gltf
 
 
 def eye_extra_name(gltf):
-    # 特殊目><のマテリアル名
+    """
+    特殊目><の検索用マテリアル名を取得する
+    バージョン判定に利用
+    :param gltf: glTFオブジェクト
+    :return: 検索用マテリアル名(名前の一部)
+    """
     if find_material(gltf, '_EyeExtra_'):
         return '_EyeExtra_'
     # v0.2.15：F00_000_EyeExtra_01_EYE -> v0.3.0：F00_000_FaceEyeSP_00_EYE
     return '_FaceEyeSP_'
 
 
-# VROID服装種別
+"""
+VRoidモデルの服装識別子
+"""
 CLOTH_NAKED = 'BIG_BOSS'
 CLOTH_STUDENT = 'STUDENT'
 CLOTH_ONE_PIECE = 'ONE_PIECE'
 
 
 def get_cloth_type(gltf):
+    """
+    マテリアル情報から服装を判定する
+    :param gltf: glTFオブジェクト
+    :return: 服装識別子
+    """
     # 服装判定
     names = map(lambda x: x['name'], gltf['materials'])
     for name in names:
@@ -297,7 +379,11 @@ def get_cloth_type(gltf):
 
 
 def reduce_vroid(gltf):
-    # VRoidモデルの軽量化
+    """
+    VRoidモデルを軽量化する
+    :param gltf: glTFオブジェクト(VRM拡張を含む)
+    :return: 軽量化したglTFオブジェクト
+    """
 
     # 髪プリミティブ統合
     print 'combine hair primitives...'
@@ -305,7 +391,7 @@ def reduce_vroid(gltf):
 
     # バンプマップ、スフィアマップを削除
     print 'shrink materials...'
-    gltf = shrink_material(gltf)
+    gltf = shrink_materials(gltf)
 
     # マテリアルを結合
     print 'combine materials...'

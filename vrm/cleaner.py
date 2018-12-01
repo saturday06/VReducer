@@ -5,25 +5,42 @@ from copy import deepcopy
 from util import unique
 
 
-def clean_materials(gltf):
-    # 未使用マテリアルを削除
-    gltf = deepcopy(gltf)
-
-    # 使用しているマテリアル名列挙
+def used_material_names(gltf):
+    """
+    使用しているマテリアル名リストを取得
+    :param gltf: glTFオブジェクト
+    :return: 使用しているマテリアル名リスト
+    """
     material_names = [primitive['material']['name'] for mesh in gltf['meshes'] for primitive in mesh['primitives']]
-    material_names = set(material_names)
+    return set(material_names)
 
-    # GLTFマテリアル削除
-    gltf['materials'] = filter(lambda m: m['name'] in material_names, gltf['materials'])
 
+def clean_gltf_materials(gltf):
+    """
+    未使用のglTFマテリアルを削除する
+    :param gltf: glTFオブジェクト
+    :return: 新しいマテリアルリスト
+    """
+    return filter(lambda m: m['name'] in used_material_names(gltf), gltf['materials'])
+
+
+def clean_vrm_materials(gltf):
+    """
+    未使用のVRMマテリアルを削除する
+    :param gltf: glTFオブジェクト
+    :return: 新しいマテリアルリスト
+    """
     # VRMマテリアル削除
     vrm = gltf['extensions']['VRM']
-    vrm['materialProperties'] = filter(lambda m: m['name'] in material_names, vrm['materialProperties'])
-
-    return gltf
+    return filter(lambda m: m['name'] in used_material_names(gltf), vrm['materialProperties'])
 
 
 def list_textures(gltf):
+    """
+    使用中のテクスチャを列挙する
+    :param gltf: glTFオブジェクト
+    :return: テクスチャリスト(generator)
+    """
     # GTLFテクスチャ
     for material in gltf['materials']:
         if 'baseColorTexture' in material['pbrMetallicRoughness']:
@@ -41,28 +58,38 @@ def list_textures(gltf):
 
 
 def clean_textures(gltf):
-    # 未使用テクスチャを削除
-    gltf = deepcopy(gltf)
-    gltf['textures'] = unique(list_textures(gltf))
-    return gltf
+    """
+    未使用テクスチャを削除したテクスチャリストを返す
+    :param gltf: glTFオブジェクト
+    :return: 新しいテクスチャリスト
+    """
+    return unique(list_textures(gltf))
 
 
 def clean_images(gltf):
-    # 未使用画像を削除
-    gltf = deepcopy(gltf)
-    gltf['images'] = map(lambda t: t['source'], gltf['textures'])
-    return gltf
+    """
+    未使用画像を削除
+    :param gltf: glTFオブジェクト
+    :return: 新しい画像リスト
+    """
+    return map(lambda t: t['source'], gltf['textures'])
 
 
 def clean_samplers(gltf):
-    # 未使用サンプラを削除
-    gltf = deepcopy(gltf)
-    gltf['samplers'] = map(lambda t: t['sampler'], gltf['textures'])
-    return gltf
+    """
+    未使用サンプラーを削除したサンプラーリストを返す
+    :param gltf: glTFオブジェクト
+    :return: 新しいサンプラーリスト
+    """
+    return map(lambda t: t['sampler'], gltf['textures'])
 
 
 def list_accessors(gltf):
-    # アクセサーを列挙
+    """
+    アクセサーを列挙する
+    :param gltf: glTFオブジェクト
+    :return: アクセッサー列挙(generator)
+    """
     for skin in gltf['skins']:
         yield skin['inverseBindMatrices']
 
@@ -78,10 +105,12 @@ def list_accessors(gltf):
 
 
 def clean_accesors(gltf):
-    # 未使用アクセッサーを削除
-    gltf = deepcopy(gltf)
-    gltf['accessors'] = unique(list_accessors(gltf))
-    return gltf
+    """
+    未使用アクセッサーを削除したアクセッサーリストを返す
+    :param gltf: glTFオブジェクト
+    :return: 新しいアクセッサーリスト
+    """
+    return unique(list_accessors(gltf))
 
 
 def list_buffer_views(gltf):
@@ -96,29 +125,39 @@ def list_buffer_views(gltf):
 
 
 def clean_buffer_views(gltf):
-    # 未使用バッファービューを削除
-    gltf = deepcopy(gltf)
-    gltf['bufferViews'] = unique(list_buffer_views(gltf))
-    return gltf
+    """
+    未使用バッファービューを削除したバッファービューリストを返す
+    :param gltf: glTFオブジェクト
+    :return: 新しいバッファービューリスト
+    """
+    return unique(list_buffer_views(gltf))
 
 
 def clean(gltf):
+    """
+    不要なマテリアル、テクスチャ、画像、サンプラー、アクセッサー、バッファビューを削除する
+    :param gltf: glTFオブジェクト
+    :return: 削除後のglTFオブジェクト
+    """
+    gltf = deepcopy(gltf)
+
     # 未参照のマテリアルを削除
-    gltf = clean_materials(gltf)
+    gltf['materials'] = clean_gltf_materials(gltf)
+    gltf['extensions']['VRM']['materialProperties'] = clean_vrm_materials(gltf)
 
     # 未参照のテクスチャを削除
-    gltf = clean_textures(gltf)
+    gltf['textures'] = clean_textures(gltf)
 
     # 未参照の画像を削除
-    gltf = clean_images(gltf)
+    gltf['images'] = clean_images(gltf)
 
     # 未参照のサンプラーを削除
-    gltf = clean_samplers(gltf)
+    gltf['samplers'] = clean_samplers(gltf)
 
     # 不要アクセッサーを削除
-    gltf = clean_accesors(gltf)
+    gltf['accessors'] = clean_accesors(gltf)
 
     # 不要バッファービューを削除
-    gltf = clean_buffer_views(gltf)
+    gltf['bufferViews'] = clean_buffer_views(gltf)
 
     return gltf
