@@ -52,11 +52,11 @@ vrm materials: 16
 materials: 16
 textures: 29
 images: 29
-meshes 3
-total primitives: 51
-        primitives: 9
-        primitives: 6
-        primitives: 36
+meshes: 3
+primitives: 51
+        Face.baked : 9
+        Body.baked : 6
+        Hair001.baked : 36
 ------------------------------
 combine hair primitives...
 shrink materials...
@@ -67,11 +67,11 @@ vrm materials: 6
 materials: 6
 textures: 9
 images: 9
-meshes 3
-total primitives: 16
-        primitives: 9
-        primitives: 6
-        primitives: 1
+meshes: 3
+primitives: 16
+        Face.baked : 9
+        Body.baked : 6
+        Hair001.baked : 1
 saved.
 ```
 上記例では以下のパスに変換後のファイルが出力されます。
