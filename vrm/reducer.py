@@ -1,18 +1,69 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 import struct
-from copy import deepcopy
+from copy import deepcopy, copy
 from io import BytesIO
 from itertools import groupby
 
 from PIL import Image
 
 from cleaner import clean
-from util import find
+from util import find, unique
 
 """
 VRoidモデルの削減処理
 """
+
+
+def unique_materials(materials):
+    """
+    マテリアル名 -> 重複元マテリアル の対応辞書を返す
+    :param materials: マテリアルリスト
+    :return: マテリアル名 -> 重複元マテリアル の対応辞書
+    """
+    # ハッシュ化の関係で辞書が使えなかったので、リスト2つで代用
+    copied_materials = []   # nameキーを削除したマテリアルのリスト
+    uni_materials = []      # 重複しないマテリアルのリスト
+    for material in materials:
+        copied = copy(material)
+        del copied['name']  # 読み込み時に別々になるように書き換えているため、nameキーを除外して比較
+        if copied not in copied_materials:
+            copied_materials.append(copied)
+            uni_materials.append(material)
+        yield material['name'], uni_materials[copied_materials.index(copied)]
+
+
+def deduplicated_materials(gltf):
+    """
+    重複マテリアルを排除する
+    :param gltf: glTFオブジェクト
+    :return: 重複排除後のglTFオブジェクト
+    """
+    gltf = deepcopy(gltf)
+    vrm = gltf['extensions']['VRM']
+
+    # VRMマテリアルを元に重複排除
+    # マテリアル名 -> 重複元マテリアルの対応マップ
+    vrm_material_map = dict(unique_materials(vrm['materialProperties']))
+    # VRMマテリアルの重複排除
+    vrm['materialProperties'] = unique(vrm_material_map.values())
+
+    # マテリアル名 -> 重複元マテリアル名の対応マップ
+    unique_name_map = {k: v['name'] for k, v in vrm_material_map.items()}
+    # マテリアル名 -> マテリアルの対応マップ
+    materials_name_map = {m['name']: m for m in gltf['materials']}
+    # プリミティブからマテリアルの重複を排除する
+    for mesh in gltf['meshes']:
+        for primitive in mesh['primitives']:
+            # 重複排除後のマテリアルで更新
+            name = primitive['material']['name']
+            new_name = unique_name_map[name]
+            primitive['material'] = materials_name_map[new_name]
+
+    # マテリアルの重複排除(VRMマテリアルと同じ順番にすることに注意)
+    gltf['materials'] = [materials_name_map[vm['name']] for vm in vrm['materialProperties']]
+
+    return gltf
 
 
 def find_meshes(meshes, name):
@@ -371,6 +422,8 @@ def reduce_vroid(gltf):
     :param gltf: glTFオブジェクト(VRM拡張を含む)
     :return: 軽量化したglTFオブジェクト
     """
+    # マテリアルの重複排除
+    gltf = deduplicated_materials(gltf)
 
     # 髪プリミティブ統合
     print 'combine hair primitives...'
