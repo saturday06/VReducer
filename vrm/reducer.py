@@ -40,11 +40,11 @@ def combine_primitives(primitives):
     buffer_views = map(lambda indices: indices['bufferView'], primitive_indices)
     head_view = buffer_views[0]
     # 統合したbufferViewを作成
-    buffer = head_view['buffer']
+    buf = head_view['buffer']
     offset = head_view['byteOffset']
     data = b''.join(map(lambda view: view['data'], buffer_views))  # バイトデータ
     new_view = {
-        'buffer': buffer,
+        'buffer': buf,
         'byteOffset': offset,
         'byteLength': len(data),
         'target': head_view['target'],
@@ -293,6 +293,7 @@ def combine_material(gltf, resize_info, base_material_name):
     gltf['bufferViews'].append(new_view)
 
     # マテリアル統一(テクスチャを更新しているので適用するだけで良い)
+    # VRM上の拡張マテリアルはclean処理で削除される
     new_material = find_material(gltf, base_material_name)
 
     def uv_scale(name):
@@ -341,19 +342,6 @@ def combine_material(gltf, resize_info, base_material_name):
     return gltf
 
 
-def eye_extra_name(gltf):
-    """
-    特殊目><の検索用マテリアル名を取得する
-    バージョン判定に利用
-    :param gltf: glTFオブジェクト
-    :return: 検索用マテリアル名(名前の一部)
-    """
-    if find_material(gltf, '_EyeExtra_'):
-        return '_EyeExtra_'
-    # v0.2.15：F00_000_EyeExtra_01_EYE -> v0.3.0：F00_000_FaceEyeSP_00_EYE
-    return '_FaceEyeSP_'
-
-
 """
 VRoidモデルの服装識別子
 """
@@ -368,7 +356,6 @@ def get_cloth_type(gltf):
     :param gltf: glTFオブジェクト
     :return: 服装識別子
     """
-    # 服装判定
     names = map(lambda x: x['name'], gltf['materials'])
     for name in names:
         if name.startswith('F00_001'):
@@ -411,13 +398,12 @@ def reduce_vroid(gltf):
     gltf = combine_material(gltf, {
         '_Body_': {'pos': (0, 0), 'size': (1536, 2048)},
         '_Face_': {'pos': (1536, 0), 'size': (512, 512)},
-        '_EyeWhite_': {'pos': (1536, 512), 'size': (512, 512)},
-        '_FaceMouth_': {'pos': (1536, 1024), 'size': (512, 512)},
+        '_FaceMouth_': {'pos': (1536, 1024), 'size': (512, 512)}
     }, '_Face_')
 
     # アイライン、まつ毛
     gltf = combine_material(gltf, {
-        eye_extra_name(gltf): {'pos': (0, 0), 'size': (1024, 512)},
+        '_FaceEyeSP_': {'pos': (0, 0), 'size': (1024, 512)},
         '_FaceEyeline_': {'pos': (0, 512), 'size': (1024, 512)},
         '_FaceEyelash_': {'pos': (0, 1024), 'size': (1024, 512)}
     }, '_FaceEyeline_')
@@ -425,8 +411,9 @@ def reduce_vroid(gltf):
     # 瞳孔、ハイライト
     gltf = combine_material(gltf, {
         '_EyeIris_': {'pos': (0, 0), 'size': (1024, 512)},
-        '_EyeHighlight_': {'pos': (0, 512), 'size': (1024, 512)}
-    }, '_EyeIris_')
+        '_EyeHighlight_': {'pos': (0, 512), 'size': (1024, 512)},
+        '_EyeWhite_': {'pos': (0, 1024), 'size': (1024, 512)}
+    }, '_EyeHighlight_')
 
     # 髪の毛、頭の下毛
     hair_material = find_material(gltf, '_Hair_')
