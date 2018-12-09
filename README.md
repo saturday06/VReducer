@@ -24,13 +24,15 @@ $ pip install Pillow
 
 ## 使い方
 ```bash
-$ python vreducer.py [VRM_FILE_PATH] [-f|--force] [-h|--help] [-V|--version]
+$ python vreducer.py [VRM_FILE_PATH] [-f|--force] [-s|--replace-shade-color] [-h|--help] [-V|--version]
 ```
 
 
 VRM_FILE_PATH: VRMファイルパス
 
--f, --force: このオプションが指定された場合ファイル保存時、確認なしに上書きする
+-f, --force: ファイル保存時、確認なしに上書きする
+
+-s, --replace-shade-color: 陰を消す(陰の色をライトが当たる部分の色と同色にする)
 
 -h, --help: ヘルプ表示
 
