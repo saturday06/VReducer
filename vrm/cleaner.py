@@ -41,7 +41,7 @@ def list_textures(gltf):
     :param gltf: glTFオブジェクト
     :return: テクスチャリスト(generator)
     """
-    # GTLFテクスチャ
+    # GLTFテクスチャ
     for material in gltf['materials']:
         if 'baseColorTexture' in material['pbrMetallicRoughness']:
             yield material['pbrMetallicRoughness']['baseColorTexture']['index']
