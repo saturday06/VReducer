@@ -332,7 +332,8 @@ def combine_material(gltf, resize_info, base_material_name):
     for name, tex_source in main_tex_sources.items():
         image = load_img(tex_source)
         info = resize_info[name]
-        one_image.paste(image.resize(info['size'], Image.LANCZOS), info['pos'])
+        resized = image.resize(info['size'], Image.BICUBIC)    # 透過境界部分にノイズが出ないようにBICUBICを使用
+        one_image.paste(resized, info['pos'])
     width, height = map(float, one_image.size)
     new_view = {'data': image2bytes(one_image, 'png')}
     image_names = [source['name'] for source in main_tex_sources.values() if source['name']]
