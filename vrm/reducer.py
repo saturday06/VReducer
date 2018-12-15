@@ -396,6 +396,19 @@ def combine_material(gltf, resize_info, base_material_name):
     return gltf
 
 
+def replace_shade(gltf):
+    """
+    陰部分の色を光の当たる部分と同色にする(陰色の無視)
+    :param gltf: glTFオブジェクト
+    :return: 編集護のglTFオブジェクト
+    """
+    gltf = deepcopy(gltf)
+    for material in gltf['extensions']['VRM']['materialProperties']:
+        vec_props = material['vectorProperties']
+        vec_props['_ShadeColor'] = vec_props['_Color']
+    return gltf
+
+
 """
 VRoidモデルの服装識別子
 """
@@ -419,10 +432,11 @@ def get_cloth_type(gltf):
     return CLOTH_NAKED
 
 
-def reduce_vroid(gltf):
+def reduce_vroid(gltf, replace_shade_color=False):
     """
     VRoidモデルを軽量化する
     :param gltf: glTFオブジェクト(VRM拡張を含む)
+    :param replace_shade_color: Trueで陰色を消す
     :return: 軽量化したglTFオブジェクト
     """
     # マテリアルの重複排除
@@ -477,6 +491,10 @@ def reduce_vroid(gltf):
         '_HairBack_': {'pos': (0, 0), 'size': (1024, 1024)},
         hair_material['name']: {'pos': (1024, 0), 'size': (512, 1024)}
     }, '_Hair_')
+
+    if replace_shade_color:
+        # 陰色を消す
+        gltf = replace_shade(gltf)
 
     # 不要要素削除
     print 'clean...'
