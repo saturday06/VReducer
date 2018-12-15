@@ -464,6 +464,15 @@ def reduce_vroid(gltf, replace_shade_color=False):
             '_Shoes_': {'pos': (1024, 1536), 'size': (512, 512)}
         }, '_Tops_')
 
+    if cloth_type == CLOTH_ONE_PIECE:
+        # ワンピース、靴
+        # 0.3.0: Onepiece
+        # 0.4.0-p1: Onepice
+        gltf = combine_material(gltf, {
+            'F00_002_Onepi': {'pos': (0, 0), 'size': (2048, 1536)},
+            '_Shoes_': {'pos': (0, 1536), 'size': (512, 512)}
+        }, 'F00_002_Onepi')
+
     # ボディ、顔、白目、口
     gltf = combine_material(gltf, {
         '_Body_': {'pos': (0, 0), 'size': (1536, 2048)},
