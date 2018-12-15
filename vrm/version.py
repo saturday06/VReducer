@@ -5,7 +5,7 @@
 アプリケーション、バージョン情報
 """
 APP_NAME = 'VReducer'
-VERSION = '0.1.2'
+VERSION = '0.1.2-p1'
 
 
 def app_name():

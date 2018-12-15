@@ -22,11 +22,14 @@ def unique_materials(materials):
     :return: マテリアル名 -> 重複元マテリアル の対応辞書
     """
     # ハッシュ化の関係で辞書が使えなかったので、リスト2つで代用
-    copied_materials = []   # nameキーを削除したマテリアルのリスト
-    uni_materials = []      # 重複しないマテリアルのリスト
+    copied_materials = []  # nameキーを削除したマテリアルのリスト
+    uni_materials = []  # 重複しないマテリアルのリスト
     for material in materials:
         copied = copy(material)
         del copied['name']  # 読み込み時に別々になるように書き換えているため、nameキーを除外して比較
+        if '_OutlineColor' in copied['vectorProperties']:
+            del copied['vectorProperties']['_OutlineColor']  # 0.4.0-p1でOutlineColorが統一されないバグがあるので除外する
+
         if copied not in copied_materials:
             copied_materials.append(copied)
             uni_materials.append(material)
