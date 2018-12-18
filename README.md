@@ -24,7 +24,7 @@ $ pip install Pillow
 
 ## 使い方
 ```bash
-$ python vreducer.py [VRM_FILE_PATH] [-f|--force] [-s|--replace-shade-color] [-h|--help] [-V|--version]
+$ python vreducer.py [VRM_FILE_PATH] [-f|--force] [-s|--replace-shade-color] [-t|--texture-size WIDTH,HEIGHT] [-h|--help] [-V|--version]
 ```
 
 
@@ -33,6 +33,8 @@ VRM_FILE_PATH: VRMファイルパス
 -f, --force: ファイル保存時、確認なしに上書きする
 
 -s, --replace-shade-color: 陰を消す(陰の色をライトが当たる部分の色と同色にする)
+
+-t, --texture-size TEXTURE_SIZE: テクスチャサイズを制限する(このサイズ以下に制限される)。TEXTURE_SIZEは幅,高さで指定(例：-t 512,512)。デフォルト2048x2048
 
 -h, --help: ヘルプ表示
 
@@ -98,7 +100,7 @@ result/Vroid.vrm
 
 | テクスチャ | 元サイズ | 変換後サイズ |
 | ---------- | -------- | ------------ | 
-| 体 | 2048x2048 | 1536x2048 |
+| 体 | 2048x2048 | 2048x1536 |
 | 制服の上着 | 2048x2048 | 2048x1536 |
 | 顔 | 1024x1024 | 512x512 |
 | 白目 | 1024x512 | 512x512 |
