@@ -138,13 +138,14 @@ def combine_all_primitives(gltf, name):
     :param name: マテリアル名
     :return: プリミティブ結合後のgltfオブジェクト
     """
-    gltf = deepcopy(gltf)
-
     # ヘアメッシュ
-    hair_meshs = find_meshes(gltf['meshes'], name)
-    hair_mesh = hair_meshs[0]
+    hair_meshes = find_meshes(gltf['meshes'], name)
+    if not hair_meshes:
+        return gltf
+    hair_mesh = hair_meshes[0]
 
     # マテリアルごとにプリミティブをまとめる
+    gltf = deepcopy(gltf)
     grouped_primitives = groupby(hair_mesh['primitives'], key=lambda p: p['material'])
 
     new_primitives = []
@@ -319,6 +320,10 @@ def combine_material(gltf, resize_info, base_material_name, texture_size=(2048, 
     :param texture_size: 指定したサイズ以下に縮小する
     :return: マテリアル結合したglTFオブジェクト
     """
+    no_base_materials = [find_vrm_material(gltf, name) for name in resize_info if base_material_name != name]
+    if not no_base_materials:
+        return gltf  # 結合先でないマテリアルがない場合、結合済み
+
     gltf = deepcopy(gltf)
 
     # 制服、スカート、リボン、靴マテリアル結合
@@ -501,6 +506,10 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
         '_FaceMouth_': {'pos': (512, 0), 'size': (512, 512)},
         '_Body_': {'pos': (0, 512), 'size': (2048, 1536)}
     }, '_Face_', texture_size)
+    # レンダータイプを変更
+    face_mat = find_vrm_material(gltf, '_Face_')
+    face_mat['keywordMap']['_ALPHATEST_ON'] = True
+    face_mat['tagMap']["RenderType"] = 'TransparentCutout'
 
     # アイライン、まつ毛
     gltf = combine_material(gltf, {
@@ -521,9 +530,11 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
     hair_material = find_material(gltf, '_Hair_')
     if hair_material:
         hair_resize[hair_material['name']] = {'pos': (0, 0), 'size': (512, 1024)}
-    if find_material(gltf, '_HairBack_'):
-        hair_resize['_HairBack_'] = {'pos': (512, 0), 'size': (1024, 1024)}
-    gltf = combine_material(gltf, hair_resize, '_Hair_', texture_size)
+        if find_material(gltf, '_HairBack_'):
+            hair_resize['_HairBack_'] = {'pos': (512, 0), 'size': (1024, 1024)}
+        gltf = combine_material(gltf, hair_resize, '_Hair_', texture_size)
+
+    # 他のテクスチャサイズの変換
 
     if replace_shade_color:
         # 陰色を消す
