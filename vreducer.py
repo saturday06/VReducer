@@ -10,11 +10,20 @@ from vrm.reducer import reduce_vroid
 from vrm.vrm import load
 
 
+def parse_texture_size(texture_size_option):
+    # テクスチャサイズオプションのパース
+    option = texture_size_option.split(',')[:2]
+    w, h = (option * 2)[:2]
+    return int(w), int(h)
+
+
 def main(argv):
     from vrm.version import app_name
     parser = ArgumentParser()
     parser.add_argument('path', help=u'VRM file exported by VRoid Studio.')
     parser.add_argument('-s', '--replace-shade-color', action='store_true', help=u'Replace shade color to main color.')
+    parser.add_argument('-t', '--texture-size', default='2048,2048',
+                        help=u'Change texture size less equal than this size. (-t 512,512)')
     parser.add_argument('-f', '--force', action='store_true', help=u'Overwrite file if already exists same file.')
     parser.add_argument('-V', '--version', action='version', version=app_name())
     opt = parser.parse_args(argv)
@@ -28,7 +37,7 @@ def main(argv):
     print_stat(vrm.gltf)
 
     print '-' * 30
-    vrm.gltf = reduce_vroid(vrm.gltf, opt.replace_shade_color)
+    vrm.gltf = reduce_vroid(vrm.gltf, opt.replace_shade_color, parse_texture_size(opt.texture_size))
 
     print '-' * 30
     print_stat(vrm.gltf)
