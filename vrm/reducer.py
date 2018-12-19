@@ -138,6 +138,7 @@ def combine_all_primitives(gltf, name):
     :param name: マテリアル名
     :return: プリミティブ結合後のgltfオブジェクト
     """
+    gltf = deepcopy(gltf)
     # ヘアメッシュ
     hair_meshes = find_meshes(gltf['meshes'], name)
     if not hair_meshes:
@@ -145,7 +146,6 @@ def combine_all_primitives(gltf, name):
     hair_mesh = hair_meshes[0]
 
     # マテリアルごとにプリミティブをまとめる
-    gltf = deepcopy(gltf)
     grouped_primitives = groupby(hair_mesh['primitives'], key=lambda p: p['material'])
 
     new_primitives = []
