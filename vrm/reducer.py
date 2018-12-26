@@ -326,7 +326,6 @@ def combine_material(gltf, resize_info, base_material_name, texture_size=(2048, 
 
     gltf = deepcopy(gltf)
 
-    # 制服、スカート、リボン、靴マテリアル結合
     vrm_materials = {name: find_vrm_material(gltf, name) for name in resize_info}
     main_tex_sources = {name: material['textureProperties']['_MainTex']['source'] for name, material in
                         vrm_materials.items() if material}
