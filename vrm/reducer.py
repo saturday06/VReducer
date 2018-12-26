@@ -246,14 +246,13 @@ def find_vrm_material(gltf, name):
     return find_material_from_name(gltf['extensions']['VRM']['materialProperties'], name)
 
 
-def load_img(image):
+def load_img(image_buffer):
     """
     画像ファイル(バイトデータ)をPILで読み込む
-    :param image: 画像ファイルのバイトデータ
+    :param image_buffer: 画像ファイルのバイトデータ
     :return: PIL.Imageオブジェクト
     """
-    buffer_view = image['bufferView']
-    return Image.open(BytesIO(buffer_view['data']))
+    return Image.open(BytesIO(image_buffer))
 
 
 def image2bytes(img, fmt):
@@ -353,9 +352,9 @@ def combine_material(gltf, resize_info, base_material_name, texture_size=(2048, 
     # 再配置情報を元に1つの画像にまとめる
     one_image = Image.new("RGBA", (image_w, image_h), (0, 0, 0, 0))
     for name, tex_source in main_tex_sources.items():
-        image = load_img(tex_source)
+        pil_image = load_img(tex_source['bufferView']['data'])
         info = scaled_info[name]
-        resized = image.resize(info['size'], Image.BICUBIC)  # 透過境界部分にノイズが出ないようにBICUBICを使用
+        resized = pil_image.resize(info['size'], Image.BICUBIC)  # 透過境界部分にノイズが出ないようにBICUBICを使用
         one_image.paste(resized, info['pos'])
     new_view = {'data': image2bytes(one_image, 'png')}  # pngファイルデータに変換
     # 結合画像名は各画像名を結合した名前にする
@@ -422,6 +421,39 @@ def combine_material(gltf, resize_info, base_material_name, texture_size=(2048, 
     return gltf
 
 
+def reduced_image(image_buffer, texture_size):
+    """
+    画像を指定サイズ以下に縮小する
+    :param image_buffer: イメージファイルバイトデータ
+    :param texture_size: 画像の縮小上限値
+    :return: 新しいイメージファイルバイトデータ
+    """
+    pil_image = load_img(image_buffer)
+    w, h = pil_image.size
+    max_w, max_h = texture_size
+    if w <= max_w and h <= max_h:
+        return image_buffer
+
+    width, height = min(w, max_w), min(h, max_h)
+    new_image = pil_image.resize((width, height), Image.BICUBIC)
+
+    return image2bytes(new_image, 'png')
+
+
+def reduced_images(gltf, texture_size):
+    """
+    画像を指定サイズ以下に縮小する
+    :param gltf: glTFオブジェクト
+    :param texture_size: テクスチャサイズ
+    :return: 画像リサイズ後のglTFオブジェクト
+    """
+    gltf = deepcopy(gltf)
+    for image in gltf['images']:
+        buffer_view = image['bufferView']
+        buffer_view['data'] = reduced_image(buffer_view['data'], texture_size)
+    return gltf
+
+
 def replace_shade(gltf):
     """
     陰部分の色を光の当たる部分と同色にする(陰色の無視)
@@ -463,6 +495,7 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
     VRoidモデルを軽量化する
     :param gltf: glTFオブジェクト(VRM拡張を含む)
     :param replace_shade_color: Trueで陰色を消す
+    :param texture_size: テクスチャサイズの上限値
     :return: 軽量化したglTFオブジェクト
     """
     # マテリアルの重複排除
@@ -533,12 +566,15 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
             hair_resize['_HairBack_'] = {'pos': (512, 0), 'size': (1024, 1024)}
         gltf = combine_material(gltf, hair_resize, '_Hair_', texture_size)
 
-    # 他のテクスチャサイズの変換
-
     if replace_shade_color:
         # 陰色を消す
         gltf = replace_shade(gltf)
 
     # 不要要素削除
-    print 'clean...'
+    gltf = clean(gltf)
+
+    # 他のテクスチャ画像サイズの変換
+    print 'reduced images...'
+    gltf = reduced_images(gltf, texture_size)
+
     return clean(gltf)
