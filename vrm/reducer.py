@@ -139,10 +139,11 @@ def combine_all_primitives(gltf, name):
     :return: プリミティブ結合後のgltfオブジェクト
     """
     gltf = deepcopy(gltf)
-
     # ヘアメッシュ
-    hair_meshs = find_meshes(gltf['meshes'], name)
-    hair_mesh = hair_meshs[0]
+    hair_meshes = find_meshes(gltf['meshes'], name)
+    if not hair_meshes:
+        return gltf
+    hair_mesh = hair_meshes[0]
 
     # マテリアルごとにプリミティブをまとめる
     grouped_primitives = groupby(hair_mesh['primitives'], key=lambda p: p['material'])
@@ -245,14 +246,13 @@ def find_vrm_material(gltf, name):
     return find_material_from_name(gltf['extensions']['VRM']['materialProperties'], name)
 
 
-def load_img(image):
+def load_img(image_buffer):
     """
     画像ファイル(バイトデータ)をPILで読み込む
-    :param image: 画像ファイルのバイトデータ
+    :param image_buffer: 画像ファイルのバイトデータ
     :return: PIL.Imageオブジェクト
     """
-    buffer_view = image['bufferView']
-    return Image.open(BytesIO(buffer_view['data']))
+    return Image.open(BytesIO(image_buffer))
 
 
 def image2bytes(img, fmt):
@@ -309,34 +309,57 @@ def list_primitives(gltf, names):
             yield (name, primitive, view_index)
 
 
-def combine_material(gltf, resize_info, base_material_name):
+def combine_material(gltf, resize_info, base_material_name, texture_size=(2048, 2048)):
     """
     再配置情報で指定されたマテリアルを結合する
     テクスチャも結合する
     :param gltf: glTFオブジェクト
     :param resize_info: マテリアル名とテクスチャ配置情報
     :param base_material_name: 統合先にするマテリアル
+    :param texture_size: 指定したサイズ以下に縮小する
     :return: マテリアル結合したglTFオブジェクト
     """
-    gltf = deepcopy(gltf)
+    no_base_materials = [find_vrm_material(gltf, name) for name in resize_info if base_material_name != name]
+    if not no_base_materials:
+        return gltf  # 結合先でないマテリアルがない場合、結合済み
 
-    # 制服、スカート、リボン、靴マテリアル結合
-    max_w, max_h = max_size(resize_info)
+    gltf = deepcopy(gltf)
 
     vrm_materials = {name: find_vrm_material(gltf, name) for name in resize_info}
     main_tex_sources = {name: material['textureProperties']['_MainTex']['source'] for name, material in
                         vrm_materials.items() if material}
 
+    # リサイズ指定サイズ
+    resize_w, resize_h = max_size(resize_info)
+    # テクスチャ指定サイズ
+    tex_w, tex_h = texture_size
+
+    # 指定テクスチャサイズ以下になるようにスケール係数を計算
+    image_w, image_h = (min(resize_w, tex_w), min(resize_h, tex_h))
+    scale_w, scale_h = (image_w / float(resize_w), image_h / float(resize_h))
+
+    def scaled():
+        # スケールを適用したリサイズ情報を返す
+        for name, info in resize_info.items():
+            x, y = info['pos']
+            pos = (int(x * scale_w), int(y * scale_h))
+            w, h = info['size']
+            size = (int(w * scale_w), int(h * scale_h))
+            yield name, {'pos': pos, 'size': size}
+
+    scaled_info = dict(scaled())
+
     # 再配置情報を元に1つの画像にまとめる
-    one_image = Image.new("RGBA", (max_w, max_h), (0, 0, 0, 0))
+    one_image = Image.new("RGBA", (image_w, image_h), (0, 0, 0, 0))
     for name, tex_source in main_tex_sources.items():
-        image = load_img(tex_source)
-        info = resize_info[name]
-        one_image.paste(image.resize(info['size'], Image.LANCZOS), info['pos'])
-    width, height = map(float, one_image.size)
-    new_view = {'data': image2bytes(one_image, 'png')}
+        pil_image = load_img(tex_source['bufferView']['data'])
+        info = scaled_info[name]
+        resized = pil_image.resize(info['size'], Image.BICUBIC)  # 透過境界部分にノイズが出ないようにBICUBICを使用
+        one_image.paste(resized, info['pos'])
+    new_view = {'data': image2bytes(one_image, 'png')}  # pngファイルデータに変換
+    # 結合画像名は各画像名を結合した名前にする
     image_names = [source['name'] for source in main_tex_sources.values() if source['name']]
-    new_image = {'name': image_names, 'mimeType': 'image/png', 'bufferView': new_view}
+    new_image = {'name': '-'.join(image_names), 'mimeType': 'image/png', 'bufferView': new_view}
     # one_image.show()
 
     # テクスチャ更新
@@ -350,13 +373,15 @@ def combine_material(gltf, resize_info, base_material_name):
     # VRM上の拡張マテリアルはclean処理で削除される
     new_material = find_material(gltf, base_material_name)
 
+    width, height = map(float, (resize_w, resize_h))
+
     def uv_scale(name):
         # スケール率計算
         paste_info = resize_info[name]
-        paste_pos = paste_info['pos']
-        paste_size = paste_info['size']
-        x, y = (paste_pos[0] / width, paste_pos[1] / height)
-        w, h = (paste_size[0] / width, paste_size[1] / height)
+        paste_x, paste_y = paste_info['pos']
+        paste_w, paste_h = paste_info['size']
+        x, y = (paste_x / width, paste_y / height)
+        w, h = (paste_w / width, paste_h / height)
         return x, y, w, h
 
     # オリジナルバッファー
@@ -396,6 +421,52 @@ def combine_material(gltf, resize_info, base_material_name):
     return gltf
 
 
+def reduced_image(image_buffer, texture_size):
+    """
+    画像を指定サイズ以下に縮小する
+    :param image_buffer: イメージファイルバイトデータ
+    :param texture_size: 画像の縮小上限値
+    :return: 新しいイメージファイルバイトデータ
+    """
+    pil_image = load_img(image_buffer)
+    w, h = pil_image.size
+    max_w, max_h = texture_size
+    if w <= max_w and h <= max_h:
+        return image_buffer
+
+    width, height = min(w, max_w), min(h, max_h)
+    new_image = pil_image.resize((width, height), Image.BICUBIC)
+
+    return image2bytes(new_image, 'png')
+
+
+def reduced_images(gltf, texture_size):
+    """
+    画像を指定サイズ以下に縮小する
+    :param gltf: glTFオブジェクト
+    :param texture_size: テクスチャサイズ
+    :return: 画像リサイズ後のglTFオブジェクト
+    """
+    gltf = deepcopy(gltf)
+    for image in gltf['images']:
+        buffer_view = image['bufferView']
+        buffer_view['data'] = reduced_image(buffer_view['data'], texture_size)
+    return gltf
+
+
+def replace_shade(gltf):
+    """
+    陰部分の色を光の当たる部分と同色にする(陰色の無視)
+    :param gltf: glTFオブジェクト
+    :return: 編集護のglTFオブジェクト
+    """
+    gltf = deepcopy(gltf)
+    for material in gltf['extensions']['VRM']['materialProperties']:
+        vec_props = material['vectorProperties']
+        vec_props['_ShadeColor'] = vec_props['_Color']
+    return gltf
+
+
 """
 VRoidモデルの服装識別子
 """
@@ -419,10 +490,12 @@ def get_cloth_type(gltf):
     return CLOTH_NAKED
 
 
-def reduce_vroid(gltf):
+def reduce_vroid(gltf, replace_shade_color, texture_size):
     """
     VRoidモデルを軽量化する
     :param gltf: glTFオブジェクト(VRM拡張を含む)
+    :param replace_shade_color: Trueで陰色を消す
+    :param texture_size: テクスチャサイズの上限値
     :return: 軽量化したglTFオブジェクト
     """
     # マテリアルの重複排除
@@ -448,36 +521,60 @@ def reduce_vroid(gltf):
             '_Bottoms_': {'pos': (0, 1536), 'size': (512, 512)},
             '_Accessory_': {'pos': (512, 1536), 'size': (512, 512)},
             '_Shoes_': {'pos': (1024, 1536), 'size': (512, 512)}
-        }, '_Tops_')
+        }, '_Tops_', texture_size)
 
-    # ボディ、顔、白目、口
+    if cloth_type == CLOTH_ONE_PIECE:
+        # ワンピース、靴
+        # 0.3.0: Onepiece
+        # 0.4.0-p1: Onepice
+        gltf = combine_material(gltf, {
+            'F00_002_Onepi': {'pos': (0, 0), 'size': (2048, 1536)},
+            '_Shoes_': {'pos': (0, 1536), 'size': (512, 512)}
+        }, 'F00_002_Onepi', texture_size)
+
+    # ボディ、顔、口
     gltf = combine_material(gltf, {
-        '_Body_': {'pos': (0, 0), 'size': (1536, 2048)},
-        '_Face_': {'pos': (1536, 0), 'size': (512, 512)},
-        '_FaceMouth_': {'pos': (1536, 1024), 'size': (512, 512)}
-    }, '_Face_')
+        '_Face_': {'pos': (0, 0), 'size': (512, 512)},
+        '_FaceMouth_': {'pos': (512, 0), 'size': (512, 512)},
+        '_Body_': {'pos': (0, 512), 'size': (2048, 1536)}
+    }, '_Face_', texture_size)
+    # レンダータイプを変更
+    face_mat = find_vrm_material(gltf, '_Face_')
+    face_mat['keywordMap']['_ALPHATEST_ON'] = True
+    face_mat['tagMap']["RenderType"] = 'TransparentCutout'
 
     # アイライン、まつ毛
     gltf = combine_material(gltf, {
         '_FaceEyeSP_': {'pos': (0, 0), 'size': (1024, 512)},
         '_FaceEyeline_': {'pos': (0, 512), 'size': (1024, 512)},
         '_FaceEyelash_': {'pos': (0, 1024), 'size': (1024, 512)}
-    }, '_FaceEyeline_')
+    }, '_FaceEyeline_', texture_size)
 
-    # 瞳孔、ハイライト
+    # 瞳孔、ハイライト、白目
     gltf = combine_material(gltf, {
         '_EyeIris_': {'pos': (0, 0), 'size': (1024, 512)},
         '_EyeHighlight_': {'pos': (0, 512), 'size': (1024, 512)},
         '_EyeWhite_': {'pos': (0, 1024), 'size': (1024, 512)}
-    }, '_EyeHighlight_')
+    }, '_EyeHighlight_', texture_size)
 
     # 髪の毛、頭の下毛
+    hair_resize = {}
     hair_material = find_material(gltf, '_Hair_')
-    gltf = combine_material(gltf, {
-        '_HairBack_': {'pos': (0, 0), 'size': (1024, 1024)},
-        hair_material['name']: {'pos': (1024, 0), 'size': (512, 1024)}
-    }, '_Hair_')
+    if hair_material:
+        hair_resize[hair_material['name']] = {'pos': (0, 0), 'size': (512, 1024)}
+        if find_material(gltf, '_HairBack_'):
+            hair_resize['_HairBack_'] = {'pos': (512, 0), 'size': (1024, 1024)}
+        gltf = combine_material(gltf, hair_resize, '_Hair_', texture_size)
+
+    if replace_shade_color:
+        # 陰色を消す
+        gltf = replace_shade(gltf)
 
     # 不要要素削除
-    print 'clean...'
+    gltf = clean(gltf)
+
+    # 他のテクスチャ画像サイズの変換
+    print 'reduced images...'
+    gltf = reduced_images(gltf, texture_size)
+
     return clean(gltf)
