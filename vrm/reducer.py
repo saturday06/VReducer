@@ -473,6 +473,7 @@ VRoidモデルの服装識別子
 CLOTH_NAKED = 'BIG_BOSS'
 CLOTH_STUDENT = 'STUDENT'
 CLOTH_ONE_PIECE = 'ONE_PIECE'
+CLOTH_MALE_STUDENT = 'MALE_STUDENT'
 
 
 def get_cloth_type(gltf):
@@ -485,8 +486,10 @@ def get_cloth_type(gltf):
     for name in names:
         if name.startswith('F00_001'):
             return CLOTH_STUDENT
-        if name.startswith('F00_002'):
+        elif name.startswith('F00_002'):
             return CLOTH_ONE_PIECE
+        elif name.startswith('F00_003') or name.startswith('M00_001'):
+            return CLOTH_MALE_STUDENT
     return CLOTH_NAKED
 
 
@@ -538,7 +541,15 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
             '_Shoes_': {'pos': (1024, 1536), 'size': (512, 512)}
         }, '_Tops_', texture_size)
 
-    if cloth_type == CLOTH_ONE_PIECE:
+    elif cloth_type == CLOTH_MALE_STUDENT:
+        gltf = combine_material(gltf, {
+            '_Tops_': {'pos': (0, 0), 'size': (2048, 1024)},
+            '_Bottoms_': {'pos': (0, 1024), 'size': (1024, 1024)},
+            '_Accessory_': {'pos': (1024, 1024), 'size': (512, 512)},
+            '_Shoes_': {'pos': (1024, 1536), 'size': (512, 512)}
+        }, '_Tops_', texture_size)
+
+    elif cloth_type == CLOTH_ONE_PIECE:
         # ワンピース、靴
         # 0.3.0: Onepiece
         # 0.4.0-p1: Onepice
