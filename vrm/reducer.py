@@ -8,7 +8,7 @@ from itertools import groupby
 from PIL import Image
 
 from cleaner import clean
-from util import find, unique
+from util import find, unique, exists
 
 """
 VRoidモデルの削減処理
@@ -199,8 +199,8 @@ def shrink_vrm_materials(vrm_materials):
     :param vrm_materials: VRMマテリアルリスト
     """
     for material in vrm_materials:
-        # バンプマップ、スフィアマップ削除
-        unused = ['_BumpMap', '_SphereAdd']
+        # バンプマップ、スフィアマップ、アウトラインテクスチャ削除
+        unused = ['_BumpMap', '_SphereAdd', '_OutlineWidthTexture']
         material['textureProperties'] = {k: v for k, v in material['textureProperties'].items() if k not in unused}
 
         # 法線マップ無効化
@@ -225,7 +225,7 @@ def find_material_from_name(materials, name):
     :param name: 検索マテリアル名
     :return: マテリアル名に部分一致するマテリアルを返す。見つからなければNone
     """
-    return find(lambda m: name in m['name'], materials)
+    return find(lambda m: name and name in m['name'], materials)
 
 
 def find_material(gltf, name):
@@ -291,7 +291,7 @@ def primitives_has_material(gltf, material_name):
     """
     for mesh in gltf['meshes']:
         for primitive in mesh['primitives']:
-            if material_name in primitive['material']['name']:
+            if material_name and material_name in primitive['material']['name']:
                 yield primitive
 
 
@@ -490,6 +490,21 @@ def get_cloth_type(gltf):
     return CLOTH_NAKED
 
 
+def find_eye_extra_name(gltf):
+    """
+    > < 目のマテリアル名を取得する
+    :param gltf: glTFオブジェクト
+    :return: > < 目マテリアル名
+    """
+    material_names = [m['name'] for m in gltf['materials']]
+
+    def contain_extra_eye(name):
+        candidates = ['_EyeExtra_', '_FaceEyeSP']
+        return exists(lambda c: c in name, candidates)
+
+    return find(contain_extra_eye, material_names)
+
+
 def reduce_vroid(gltf, replace_shade_color, texture_size):
     """
     VRoidモデルを軽量化する
@@ -545,7 +560,7 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
 
     # アイライン、まつ毛
     gltf = combine_material(gltf, {
-        '_FaceEyeSP_': {'pos': (0, 0), 'size': (1024, 512)},
+        find_eye_extra_name(gltf): {'pos': (0, 0), 'size': (1024, 512)},
         '_FaceEyeline_': {'pos': (0, 512), 'size': (1024, 512)},
         '_FaceEyelash_': {'pos': (0, 1024), 'size': (1024, 512)}
     }, '_FaceEyeline_', texture_size)

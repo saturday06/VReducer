@@ -24,3 +24,15 @@ def find(func, seq):
         if func(x):
             return x
     return None
+
+
+def exists(func, seq):
+    """
+    :param func: 条件
+    :param seq: リスト
+    :return: 条件を満たす要素があればTrue、見つからなければNone
+    """
+    for x in seq:
+        if func(x):
+            return True
+    return None
