@@ -50,29 +50,30 @@ result
 ```bash
 $ python vreducer.py VRoid.vrm
 VRoid.vrm
-vrm materials: 16
-materials: 16
-textures: 29
-images: 29
+vrm materials: 15
+materials: 15
+textures: 25
+images: 25
 meshes: 3
-primitives: 51
-        Face.baked : 9
-        Body.baked : 6
-        Hair001.baked : 36
+primitives: 54
+        Face.baked : 10
+        Body.baked : 7
+        Hair001.baked : 37
 ------------------------------
 combine hair primitives...
 shrink materials...
+sort face primitives...
 combine materials...
-clean...
+reduced images...
 ------------------------------
 vrm materials: 6
 materials: 6
 textures: 9
 images: 9
 meshes: 3
-primitives: 16
-        Face.baked : 9
-        Body.baked : 6
+primitives: 18
+        Face.baked : 10
+        Body.baked : 7
         Hair001.baked : 1
 saved.
 ```
