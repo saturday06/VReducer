@@ -8,7 +8,7 @@ from itertools import groupby
 from PIL import Image
 
 from cleaner import clean
-from util import find, unique
+from util import find, unique, exists
 
 """
 VRoidモデルの削減処理
@@ -199,8 +199,8 @@ def shrink_vrm_materials(vrm_materials):
     :param vrm_materials: VRMマテリアルリスト
     """
     for material in vrm_materials:
-        # バンプマップ、スフィアマップ削除
-        unused = ['_BumpMap', '_SphereAdd']
+        # バンプマップ、スフィアマップ、アウトラインテクスチャ削除
+        unused = ['_BumpMap', '_SphereAdd', '_OutlineWidthTexture']
         material['textureProperties'] = {k: v for k, v in material['textureProperties'].items() if k not in unused}
 
         # 法線マップ無効化
@@ -219,13 +219,47 @@ def shrink_materials(gltf):
     return gltf
 
 
+def sorted_primitives(primitives, material_name_order):
+    """
+    指定したマテリアル順にプリミティブをソートする
+    :param primitives: プリミティブリスト
+    :param material_name_order: マテリアル部分名(描画順)
+    :return: ソートしたプリミティブリスト
+    """
+    max_weight = len(material_name_order) + 1
+    material_name_order = filter(None, material_name_order)
+
+    def weight(name):
+        # マテリアル名の重みを返す
+        for n, order_name in enumerate(material_name_order):
+            if order_name in name:
+                return n
+        return max_weight
+
+    return sorted(primitives, key=lambda p: weight(p['material']['name']))
+
+
+def sorted_mesh_primitives(gltf, mesh_name, material_name_order):
+    """
+    :param gltf: glTFオブジェクト
+    :param mesh_name: メッシュ部分名
+    :param material_name_order: 描画順のマテリアル部分名
+    :return: マテリアル順にプリミティブをソートしたglTFオブジェクト
+    """
+    gltf = deepcopy(gltf)
+    for mesh in find_meshes(gltf['meshes'], mesh_name):
+        mesh['primitives'] = sorted_primitives(mesh['primitives'], material_name_order)
+
+    return gltf
+
+
 def find_material_from_name(materials, name):
     """
     :param gltf: glTFオブジェクト
     :param name: 検索マテリアル名
     :return: マテリアル名に部分一致するマテリアルを返す。見つからなければNone
     """
-    return find(lambda m: name in m['name'], materials)
+    return find(lambda m: name and name in m['name'], materials)
 
 
 def find_material(gltf, name):
@@ -291,7 +325,7 @@ def primitives_has_material(gltf, material_name):
     """
     for mesh in gltf['meshes']:
         for primitive in mesh['primitives']:
-            if material_name in primitive['material']['name']:
+            if material_name and material_name in primitive['material']['name']:
                 yield primitive
 
 
@@ -473,6 +507,7 @@ VRoidモデルの服装識別子
 CLOTH_NAKED = 'BIG_BOSS'
 CLOTH_STUDENT = 'STUDENT'
 CLOTH_ONE_PIECE = 'ONE_PIECE'
+CLOTH_MALE_STUDENT = 'MALE_STUDENT'
 
 
 def get_cloth_type(gltf):
@@ -485,9 +520,26 @@ def get_cloth_type(gltf):
     for name in names:
         if name.startswith('F00_001'):
             return CLOTH_STUDENT
-        if name.startswith('F00_002'):
+        elif name.startswith('F00_002'):
             return CLOTH_ONE_PIECE
+        elif name.startswith('F00_003') or name.startswith('M00_001'):
+            return CLOTH_MALE_STUDENT
     return CLOTH_NAKED
+
+
+def find_eye_extra_name(gltf):
+    """
+    > < 目のマテリアル名を取得する
+    :param gltf: glTFオブジェクト
+    :return: > < 目マテリアル名
+    """
+    material_names = [m['name'] for m in gltf['materials']]
+
+    def contain_extra_eye(name):
+        candidates = ['_EyeExtra_', '_FaceEyeSP']
+        return exists(lambda c: c in name, candidates)
+
+    return find(contain_extra_eye, material_names)
 
 
 def reduce_vroid(gltf, replace_shade_color, texture_size):
@@ -509,6 +561,12 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
     print 'shrink materials...'
     gltf = shrink_materials(gltf)
 
+    # 顔のプリミティブ描画順を並び替え
+    print 'sort face primitives...'
+    gltf = sorted_mesh_primitives(gltf, 'Face', ['_Face_', find_eye_extra_name(gltf), '_FaceMouth_',
+                                                 '_FaceEyeline_', '_FaceEyelash_', '_FaceBrow_',
+                                                 '_EyeWhite_', '_EyeIris_', '_EyeHighlight_'])
+
     # マテリアルを結合
     print 'combine materials...'
 
@@ -523,7 +581,15 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
             '_Shoes_': {'pos': (1024, 1536), 'size': (512, 512)}
         }, '_Tops_', texture_size)
 
-    if cloth_type == CLOTH_ONE_PIECE:
+    elif cloth_type == CLOTH_MALE_STUDENT:
+        gltf = combine_material(gltf, {
+            '_Tops_': {'pos': (0, 0), 'size': (2048, 1024)},
+            '_Bottoms_': {'pos': (0, 1024), 'size': (1024, 1024)},
+            '_Accessory_': {'pos': (1024, 1024), 'size': (512, 512)},
+            '_Shoes_': {'pos': (1024, 1536), 'size': (512, 512)}
+        }, '_Tops_', texture_size)
+
+    elif cloth_type == CLOTH_ONE_PIECE:
         # ワンピース、靴
         # 0.3.0: Onepiece
         # 0.4.0-p1: Onepice
@@ -532,7 +598,7 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
             '_Shoes_': {'pos': (0, 1536), 'size': (512, 512)}
         }, 'F00_002_Onepi', texture_size)
 
-    # ボディ、顔、口
+    # 体、顔、口
     gltf = combine_material(gltf, {
         '_Face_': {'pos': (0, 0), 'size': (512, 512)},
         '_FaceMouth_': {'pos': (512, 0), 'size': (512, 512)},
@@ -545,7 +611,7 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
 
     # アイライン、まつ毛
     gltf = combine_material(gltf, {
-        '_FaceEyeSP_': {'pos': (0, 0), 'size': (1024, 512)},
+        find_eye_extra_name(gltf): {'pos': (0, 0), 'size': (1024, 512)},
         '_FaceEyeline_': {'pos': (0, 512), 'size': (1024, 512)},
         '_FaceEyelash_': {'pos': (0, 1024), 'size': (1024, 512)}
     }, '_FaceEyeline_', texture_size)
@@ -556,7 +622,6 @@ def reduce_vroid(gltf, replace_shade_color, texture_size):
         '_EyeHighlight_': {'pos': (0, 512), 'size': (1024, 512)},
         '_EyeWhite_': {'pos': (0, 1024), 'size': (1024, 512)}
     }, '_EyeHighlight_', texture_size)
-
     # 髪の毛、頭の下毛
     hair_resize = {}
     hair_material = find_material(gltf, '_Hair_')
