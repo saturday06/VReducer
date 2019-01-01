@@ -1,39 +1,40 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
 import struct
-from copy import deepcopy, copy
+from copy import deepcopy
 from io import BytesIO
 from itertools import groupby
 
 from PIL import Image
 
 from cleaner import clean
-from util import find, unique, exists
+from util import find, exists, unique
 
 """
 VRoidモデルの削減処理
 """
 
 
-def unique_materials(materials):
+def unique_vrm_materials(vrm_materials):
     """
     マテリアル名 -> 重複元マテリアル の対応辞書を返す
-    :param materials: マテリアルリスト
-    :return: マテリアル名 -> 重複元マテリアル の対応辞書
+    :param vrm_materials: VRMマテリアルリスト
+    :return: マテリアル名 -> 重複元マテリアル名 の対応辞書
     """
     # ハッシュ化の関係で辞書が使えなかったので、リスト2つで代用
     copied_materials = []  # nameキーを削除したマテリアルのリスト
-    uni_materials = []  # 重複しないマテリアルのリスト
-    for material in materials:
-        copied = copy(material)
+    unique_material_names = []  # 重複しないマテリアル名リスト
+    for material in vrm_materials:
+        copied = deepcopy(material)
         del copied['name']  # 読み込み時に別々になるように書き換えているため、nameキーを除外して比較
         if '_OutlineColor' in copied['vectorProperties']:
-            del copied['vectorProperties']['_OutlineColor']  # 0.4.0-p1でOutlineColorが統一されないバグがあるので除外する
+            # 0.4.0-p1でOutlineColorが統一されないバグがあるので除外する
+            del copied['vectorProperties']['_OutlineColor']
 
         if copied not in copied_materials:
             copied_materials.append(copied)
-            uni_materials.append(material)
-        yield material['name'], uni_materials[copied_materials.index(copied)]
+            unique_material_names.append(material['name'])
+        yield material['name'], unique_material_names[copied_materials.index(copied)]
 
 
 def deduplicated_materials(gltf):
@@ -43,28 +44,27 @@ def deduplicated_materials(gltf):
     :return: 重複排除後のglTFオブジェクト
     """
     gltf = deepcopy(gltf)
-    vrm = gltf['extensions']['VRM']
 
     # VRMマテリアルを元に重複排除
-    # マテリアル名 -> 重複元マテリアルの対応マップ
-    vrm_material_map = dict(unique_materials(vrm['materialProperties']))
-    # VRMマテリアルの重複排除
-    vrm['materialProperties'] = unique(vrm_material_map.values())
+    vrm = gltf['extensions']['VRM']
+    # マテリアル名 -> 重複元マテリアル名の対応
+    unique_name_map = dict(unique_vrm_materials(vrm['materialProperties']))
+    unique_material_name_set = unique(unique_name_map.values())
 
-    # マテリアル名 -> 重複元マテリアル名の対応マップ
-    unique_name_map = {k: v['name'] for k, v in vrm_material_map.items()}
-    # マテリアル名 -> マテリアルの対応マップ
-    materials_name_map = {m['name']: m for m in gltf['materials']}
-    # プリミティブからマテリアルの重複を排除する
+    # マテリアル名 -> マテリアルの対応
+    name2materials = {m['name']: m for m in gltf['materials']}
+    name2vrm_materials = {m['name']: m for m in vrm['materialProperties']}
+
+    # マテリアルの重複排除
+    gltf['materials'] = [name2materials[name] for name in unique_material_name_set]
+    vrm['materialProperties'] = [name2vrm_materials[name] for name in unique_material_name_set]
+
+    # プリミティブのマテリアル重複排除
     for mesh in gltf['meshes']:
         for primitive in mesh['primitives']:
-            # 重複排除後のマテリアルで更新
-            name = primitive['material']['name']
-            new_name = unique_name_map[name]
-            primitive['material'] = materials_name_map[new_name]
-
-    # マテリアルの重複排除(VRMマテリアルと同じ順番にすることに注意)
-    gltf['materials'] = [materials_name_map[vm['name']] for vm in vrm['materialProperties']]
+            # プリミティブの材質を置換
+            new_name = unique_name_map[primitive['material']['name']]
+            primitive['material'] = name2materials[new_name]
 
     return gltf
 
