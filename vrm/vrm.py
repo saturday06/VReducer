@@ -36,7 +36,7 @@ class VRM(object):
             gltf, chunks = indexing(self.gltf)  # 参照をインデックス番号に変換
             gltf_encoded = json.dumps(gltf).encode('utf-8')
             gltf_encoded = gltf_encoded.ljust((len(gltf_encoded) + 3) / 4 * 4) # 4バイトアラインメント
-            glb_length = 20 + len(gltf_encoded) + sum(map(len, chunks))
+            glb_length = 20 + len(gltf_encoded) + sum(map(len, chunks)) + len(chunks) * 8
 
             # glTF header
             for v in [GLTF_MAGIC, self.version, glb_length, len(gltf_encoded), JSON_TYPE]:
